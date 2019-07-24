@@ -1,1 +1,9 @@
 # GoogleProtoCSharpWrapper
+
+由于从Google的proto文件自动化生成的C#脚本中所有变量都设置为属性，无法暴露给Unity编辑器进行编辑
+
+所以设计了一个脚本，读取proto文件编译出的pb文件，自动化生成相对应的Wrapper
+
+其中提供Load和Output函数用于读取（指数据从Google C#到Wrapper）与输出（指数据从Wrapper到Google C#）
+
+以此可以将Google C#所读取的数据传给Wrapper以暴露给Unity编辑器，或是Unity编辑器编辑后存于Wrapper传给Google C#，并进行.bytes文件的保存
