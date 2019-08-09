@@ -65,10 +65,9 @@ public static class Program
         CodeCompileUnit codeCompileUnit = new CodeCompileUnit();
 
         //设置命名空间（这个是指要生成的类的空间）
-        CodeNamespace myNamespace = new CodeNamespace("FaGame.Data");
+        CodeNamespace myNamespace = new CodeNamespace("ProtoReflection");
         //导入必要的命名空间引用
         myNamespace.Imports.Add(new CodeNamespaceImport("System"));
-        myNamespace.Imports.Add(new CodeNamespaceImport("FaGame.Data"));
         myNamespace.Imports.Add(new CodeNamespaceImport("UnityEngine"));
         myNamespace.Imports.Add(new CodeNamespaceImport("System.Collections.Generic"));
         //把该命名空间加入到编译器单元的命名空间集合中
@@ -648,7 +647,7 @@ public static class Program
         {
             Console.WriteLine("wrong input pls input two args");
         }
-        //Program.ParsePB("E:/fadepot/FA/Dev/Tables/Templates/CSOut.pb", "E:/test");
+        //Program.ParsePB("E:/CSOut.pb", "E:/test");
         Console.WriteLine("Parse End");
     }
 }
