@@ -5,10 +5,11 @@ using Google.ProtocolBuffers.DescriptorProtos;
 using System.CodeDom;
 using System.CodeDom.Compiler;
 using System.Reflection;
+using System.Text;
 
-namespace ProtobufReflection
+namespace FaProtobufReflection
 {
-    class Program
+    public static class Program
     {
         private static Dictionary<FieldDescriptorProto.Types.Type, Type> typeMap;
         private const string baseString = "baseInfo";
@@ -27,34 +28,30 @@ namespace ProtobufReflection
             }; 
         }
 
+        public static string ParseString(this Google.ProtocolBuffers.ByteString str) {
+            string ret = str.ToString(Encoding.ASCII);
+            ret = ret.Replace("\n", "");
+            ret = ret.Replace("\t", "");
+            ret = ret.Replace("\a", "");
+            ret = ret.Replace("\r", "");
+            return ret;
+        }
+
+        public static string ToCamel(this string sourcestr) {
+            var list = sourcestr.Split("_");
+            string name = "";
+            foreach (var str in list) {
+                name += str.Substring(0, 1).ToUpper() + str.Substring(1);
+            }
+            return name;
+        }
+
         public static void ParsePB(string FilePath, string outputFilePath)
         {
             var pbFile = FileDescriptorSet.ParseFrom(File.ReadAllBytes(FilePath));
 
             var protoList = pbFile.FileList;
             //指代特定proto
-            //for (int i = 0; i < protoList.Count; i++)
-            //{
-            //    Console.WriteLine(i + "  " + protoList[i].Name);
-            //    foreach (var message in protoList[i].MessageTypeList)
-            //    {
-            //        Console.WriteLine("  " + message.Name);
-            //if (message.UnknownFields[8].LengthDelimitedList.Count > 0)
-            //{
-            //    foreach (var str in message.UnknownFields[8].LengthDelimitedList)
-            //    {
-            //        Console.WriteLine("  " + str.ToStringUtf8().Replace("\n", ""));
-            //    }
-            //}
-            //        for (int j = 0; j < message.FieldList.Count; j++)
-            //        {
-            //            Console.WriteLine(j + "  " + message.FieldList[j].Name);
-            //            Console.WriteLine(j + "  " + message.FieldList[j].Type.ToString());
-            //            Console.WriteLine(j + "  " + message.FieldList[j].Label.ToString());
-
-            //        }
-            //    }
-            //}
             foreach (var proto in protoList)
             {
                 ParseProto(proto, outputFilePath);
@@ -67,10 +64,10 @@ namespace ProtobufReflection
             CodeCompileUnit codeCompileUnit = new CodeCompileUnit();
 
             //设置命名空间（这个是指要生成的类的空间）
-            CodeNamespace myNamespace = new CodeNamespace("Game.Data");
+            CodeNamespace myNamespace = new CodeNamespace("FaGame.Data");
             //导入必要的命名空间引用
             myNamespace.Imports.Add(new CodeNamespaceImport("System"));
-            myNamespace.Imports.Add(new CodeNamespaceImport("Game.Data"));
+            myNamespace.Imports.Add(new CodeNamespaceImport("FaGame.Data"));
             myNamespace.Imports.Add(new CodeNamespaceImport("UnityEngine"));
             myNamespace.Imports.Add(new CodeNamespaceImport("System.Collections.Generic"));
             //把该命名空间加入到编译器单元的命名空间集合中
@@ -89,7 +86,7 @@ namespace ProtobufReflection
             //是否在字段、属性、方法之间添加空白行
             options.BlankLinesBetweenMembers = true;
 
-            string name = GenerateCamelString(proto.Name.Split('.')[0].Split('_'));
+            string name = proto.Name.Split('.')[0].ToCamel();
 
             //输出文件路径
             string outputFile = $"{outputFilePath}/{name}Wrapper.cs";
@@ -168,7 +165,7 @@ namespace ProtobufReflection
                     }
                 }
 
-                string name = GenerateCamelString(message.FieldList[i].Name.Split('_'));
+                string name = message.FieldList[i].Name.ToCamel();
                 fieldInfo[AddPublicStringField(myClass, tempStr, name)] = message.FieldList[i];
             }
 
@@ -181,9 +178,8 @@ namespace ProtobufReflection
             {
                 foreach (var oneOfMessage in message.UnknownFields[8].LengthDelimitedList)
                 {
-                    string str = oneOfMessage.ToStringUtf8().Replace("\n", "");
-                    str= str.Replace("\t", "");
-                    string name = str.Substring(0, 1).ToUpper() + str.Substring(1);
+                    string str = oneOfMessage.ParseString();
+                    string name = str.ToCamel();
                     string finalString = $"{message.Name}.{name}OneofCase";
                     AddPublicStringField(myClass, finalString, name);
                 }
@@ -220,9 +216,8 @@ namespace ProtobufReflection
             {
                 foreach (var oneOfMessage in message.UnknownFields[8].LengthDelimitedList)
                 {
-                    string str = oneOfMessage.ToStringUtf8().Replace("\n", "");
-                    str = str.Replace("\t", "");
-                    string name = str.Substring(0, 1).ToUpper() + str.Substring(1);
+                    string str = oneOfMessage.ParseString();
+                    string name = str.ToCamel();
                     string finalString = $"{message.Name}.{name}OneofCase";
                     constructerStatements.Add(new CodeAssignStatement(new CodeSnippetExpression(name), new CodeSnippetExpression($"({finalString})0")));
                 }
@@ -356,9 +351,8 @@ namespace ProtobufReflection
             {
                 foreach (var oneOfMessage in message.UnknownFields[8].LengthDelimitedList)
                 {
-                    string str = oneOfMessage.ToStringUtf8().Replace("\n", "");
-                    str = str.Replace("\t", "");
-                    string name = str.Substring(0, 1).ToUpper() + str.Substring(1);
+                    string str = oneOfMessage.ParseString();
+                    string name = str.ToCamel();
                     string finalString = $"{message.Name}.{name}OneofCase";
                     loadBaseToWrapperStatements.Add(new CodeAssignStatement(new CodeSnippetExpression(name), new CodeSnippetExpression($"{baseString}.{name}Case")));
                 }
@@ -493,9 +487,8 @@ namespace ProtobufReflection
             {
                 foreach (var oneOfMessage in message.UnknownFields[8].LengthDelimitedList)
                 {
-                    string str = oneOfMessage.ToStringUtf8().Replace("\n", "");
-                    str = str.Replace("\t", "");
-                    string name = str.Substring(0, 1).ToUpper() + str.Substring(1);
+                    string str = oneOfMessage.ParseString();
+                    string name = str.ToCamel();
                     string className = $"{message.Name}.{name}OneofCase";
                     string finalString = "";
                     foreach (CodeTypeMember field in myClass.Members)
@@ -535,12 +528,13 @@ namespace ProtobufReflection
             AddPublicMethod(myClass, "OutputBaseFromWrapper", outputBaseFromWrapperStatements, new CodeTypeReference(message.Name));
         }
 
-        private static string GenerateCamelString(string[] stringList)
+        private static string GenerateCamelString(string stringList)
         {
+            var list = stringList.Split("_");
             string name = "";
-            foreach (var str in stringList)
+            foreach (var str in list)
             {
-                name += str.Substring(0, 1).ToUpper() + str.Substring(1);
+                name += str.ToCamel();
             }
             return name;
         }
@@ -653,7 +647,7 @@ namespace ProtobufReflection
             {
                 Console.WriteLine("wrong input pls input two args");
             }
-            //Program.ParsePB("F:/CSOut.pb", "F:/test");
+            //Program.ParsePB("E:/fadepot/FA/Dev/Tables/Templates/CSOut.pb", "E:/test");
             Console.WriteLine("Parse End");
         }
     }
