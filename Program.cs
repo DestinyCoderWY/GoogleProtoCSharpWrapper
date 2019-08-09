@@ -7,6 +7,7 @@ using System.CodeDom.Compiler;
 using System.Reflection;
 using System.Text;
 
+
 public static class Program
 {
     private static Dictionary<FieldDescriptorProto.Types.Type, Type> typeMap;
@@ -526,17 +527,6 @@ public static class Program
         outputBaseFromWrapperStatements.Add(new CodeVariableReferenceExpression($"return { baseString }"));
 
         AddPublicMethod(myClass, "OutputBaseFromWrapper", outputBaseFromWrapperStatements, new CodeTypeReference(message.Name));
-    }
-
-    private static string GenerateCamelString(string stringList)
-    {
-        var list = stringList.Split("_");
-        string name = "";
-        foreach (var str in list)
-        {
-            name += str.ToCamel();
-        }
-        return name;
     }
 
     private static string GenerateInitialString(FieldDescriptorProto fieldDescriptorProto, string tempString)
