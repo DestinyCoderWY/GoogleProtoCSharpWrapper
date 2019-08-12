@@ -7,7 +7,6 @@ using System.CodeDom.Compiler;
 using System.Reflection;
 using System.Text;
 
-
 public static class Program
 {
     private static Dictionary<FieldDescriptorProto.Types.Type, Type> typeMap;
@@ -23,7 +22,10 @@ public static class Program
                 { FieldDescriptorProto.Types.Type.TYPE_SINT64, typeof(long) },
                 { FieldDescriptorProto.Types.Type.TYPE_FLOAT, typeof(float) },
                 { FieldDescriptorProto.Types.Type.TYPE_BOOL, typeof(bool) },
-                { FieldDescriptorProto.Types.Type.TYPE_UINT32, typeof(uint) }
+                { FieldDescriptorProto.Types.Type.TYPE_UINT32, typeof(uint) },
+                { FieldDescriptorProto.Types.Type.TYPE_DOUBLE, typeof(double) },
+                { FieldDescriptorProto.Types.Type.TYPE_INT64, typeof(long) },
+                { FieldDescriptorProto.Types.Type.TYPE_BYTES, typeof(byte[]) }
             };
     }
 
@@ -76,7 +78,7 @@ public static class Program
 
         foreach (var message in proto.MessageTypeList)
         {
-            AddClass(message, codeCompileUnit, myNamespace);
+            AddClass(message, myNamespace);
         }
 
         //生成C#脚本
@@ -109,7 +111,7 @@ public static class Program
         }
     }
 
-    public static void AddClass(DescriptorProto message, CodeCompileUnit codeCompileUnit, CodeNamespace myNamespace)
+    public static void AddClass(DescriptorProto message, CodeNamespace myNamespace)
     {
         Dictionary<CodeMemberField, FieldDescriptorProto> fieldInfo = new Dictionary<CodeMemberField, FieldDescriptorProto>();
 
@@ -118,7 +120,7 @@ public static class Program
         //指定为类
         myClass.IsClass = true;
         //添加基类
-        //myClass.BaseTypes.Add("");
+        myClass.BaseTypes.Add($"ProtoBaseWrapper<{message.Name}>");
         //设置类的访问类型
         myClass.TypeAttributes = TypeAttributes.Public;// | TypeAttributes.Sealed;
                                                        //设置类序列化
@@ -288,9 +290,13 @@ public static class Program
                     //get mid
                     if (fieldDescriptorProto.Type.Equals(FieldDescriptorProto.Types.Type.TYPE_MESSAGE))
                     {
-
                         rightVariableString = $"{tempVar}.LoadBaseToWrapper({baseString}.{curField.Name}[{forVariableStr}]);";
                         codeStatement = new CodeSnippetStatement($"\t\t\t\t\t{rightVariableString}");
+                    }
+                    else if (fieldDescriptorProto.Type.Equals(FieldDescriptorProto.Types.Type.TYPE_BYTES))
+                    {
+                        rightVariableString = $"{baseString}.{curField.Name}[{forVariableStr}].ToByteArray()";
+                        codeStatement = new CodeAssignStatement(new CodeVariableReferenceExpression(tempVar), new CodeVariableReferenceExpression(rightVariableString));
                     }
                     else
                     {
@@ -336,6 +342,11 @@ public static class Program
                             new CodeVariableReferenceExpression($"{baseString}.{curField.Name} != null"),
                             // The statements to execute if the condition evaluates to true.
                             new CodeStatement[] { codeStatement });
+                    }
+                    else if (fieldDescriptorProto.Type.Equals(FieldDescriptorProto.Types.Type.TYPE_BYTES))
+                    {
+                        rightVariableString = $"{baseString}.{curField.Name}.ToByteArray()";
+                        codeStatement = new CodeAssignStatement(leftVariable, new CodeVariableReferenceExpression(rightVariableString));
                     }
                     else
                     {
@@ -393,6 +404,10 @@ public static class Program
                             Console.WriteLine($"Wrong Length in {message.Name} : {fieldDescriptorProto.TypeName}");
                         }
                     }
+                    else if (fieldDescriptorProto.Type.Equals(FieldDescriptorProto.Types.Type.TYPE_BYTES))
+                    {
+                        tempClassStr = "Google.Protobuf.ByteString";
+                    }
                     else
                     {
                         try
@@ -413,38 +428,15 @@ public static class Program
                     CodeStatement lastStatement;
 
                     //get first
-                    if (fieldDescriptorProto.Type.Equals(FieldDescriptorProto.Types.Type.TYPE_MESSAGE))
-                    {
-                        firstRightVariavleString = $"new {tempClassStr}()";
-                    }
-                    else if (fieldDescriptorProto.Type.Equals(FieldDescriptorProto.Types.Type.TYPE_ENUM))
-                    {
-                        firstRightVariavleString = $"({tempClassStr})0";
-                    }
-                    else if (fieldDescriptorProto.Type.Equals(FieldDescriptorProto.Types.Type.TYPE_STRING))
-                    {
-                        firstRightVariavleString = $"\"\"";
-                    }
-                    else if (fieldDescriptorProto.Type.Equals(FieldDescriptorProto.Types.Type.TYPE_BOOL))
-                    {
-                        firstRightVariavleString = $"false";
-                    }
-                    else
-                    {
-                        firstRightVariavleString = $"0";
-                    }
+                    firstRightVariavleString = GenerateInitialString(fieldDescriptorProto, tempClassStr);
                     firstStatement = new CodeAssignStatement(new CodeVariableReferenceExpression($"{tempClassStr} {tempVar}"), new CodeSnippetExpression(firstRightVariavleString));
+                    if (fieldDescriptorProto.Type.Equals(FieldDescriptorProto.Types.Type.TYPE_BYTES))
+                    {
+                        firstStatement = new CodeAssignStatement(new CodeVariableReferenceExpression($"{tempClassStr} {tempVar}"), new CodeSnippetExpression($"Google.Protobuf.ByteString.CopyFrom({firstRightVariavleString})"));
+                    }
 
                     //get mid
-                    if (fieldDescriptorProto.Type.Equals(FieldDescriptorProto.Types.Type.TYPE_MESSAGE))
-                    {
-
-                        rightVariableString = $"{curField.Name}[{forVariableStr}].OutputBaseFromWrapper()";
-                    }
-                    else
-                    {
-                        rightVariableString = $"{curField.Name}[{forVariableStr}]";
-                    }
+                    rightVariableString = GenerateOutputString(fieldDescriptorProto, $"{curField.Name}[{forVariableStr}]");
                     codeStatement = new CodeAssignStatement(new CodeVariableReferenceExpression(tempVar), new CodeVariableReferenceExpression(rightVariableString));
 
                     //get last
@@ -468,14 +460,7 @@ public static class Program
                 else
                 {
                     CodeStatement codeStatement;
-                    if (fieldDescriptorProto.Type.Equals(FieldDescriptorProto.Types.Type.TYPE_MESSAGE))
-                    {
-                        rightVariableString = $"{curField.Name}.OutputBaseFromWrapper()";
-                    }
-                    else
-                    {
-                        rightVariableString = $"{curField.Name}";
-                    }
+                    rightVariableString = GenerateOutputString(fieldDescriptorProto, curField.Name);
                     codeStatement = new CodeAssignStatement(leftVariable, new CodeVariableReferenceExpression(rightVariableString));
 
                     outputBaseFromWrapperStatements.Add(codeStatement);
@@ -502,14 +487,7 @@ public static class Program
                         var leftVariable = $"{baseString}.{curField.Name}";
                         string rightVariableString = "";
 
-                        if (fieldDescriptorProto.Type.Equals(FieldDescriptorProto.Types.Type.TYPE_MESSAGE))
-                        {
-                            rightVariableString = $"{curField.Name}.OutputBaseFromWrapper()";
-                        }
-                        else
-                        {
-                            rightVariableString = $"{curField.Name}";
-                        }
+                        rightVariableString = GenerateOutputString(fieldDescriptorProto, curField.Name);
                         finalString += $@"
                 case {className}.{curField.Name}:
                     {leftVariable} = {rightVariableString};
@@ -529,12 +507,34 @@ public static class Program
         AddPublicMethod(myClass, "OutputBaseFromWrapper", outputBaseFromWrapperStatements, new CodeTypeReference(message.Name));
     }
 
+    private static string GenerateOutputString(FieldDescriptorProto fieldDescriptorProto, string tempString)
+    {
+        string rightVariableString;
+        if (fieldDescriptorProto.Type.Equals(FieldDescriptorProto.Types.Type.TYPE_MESSAGE))
+        {
+            rightVariableString = $"{tempString}.OutputBaseFromWrapper()";
+        }
+        else if (fieldDescriptorProto.Type.Equals(FieldDescriptorProto.Types.Type.TYPE_BYTES))
+        {
+            rightVariableString = $"Google.Protobuf.ByteString.CopyFrom({tempString})";
+        }
+        else
+        {
+            rightVariableString = $"{tempString}";
+        }
+        return rightVariableString;
+    }
+
     private static string GenerateInitialString(FieldDescriptorProto fieldDescriptorProto, string tempString)
     {
         string rightVariableString;
         if (fieldDescriptorProto.Type.Equals(FieldDescriptorProto.Types.Type.TYPE_MESSAGE))
         {
             rightVariableString = $"new {tempString}()";
+        }
+        else if (fieldDescriptorProto.Type.Equals(FieldDescriptorProto.Types.Type.TYPE_BYTES))
+        {
+            rightVariableString = $"new byte[0]";
         }
         else if (fieldDescriptorProto.Type.Equals(FieldDescriptorProto.Types.Type.TYPE_ENUM))
         {
@@ -607,7 +607,7 @@ public static class Program
         //方法名
         method.Name = methodName;
         //访问类型
-        method.Attributes = MemberAttributes.Public;// | MemberAttributes.Final
+        method.Attributes = MemberAttributes.Public | MemberAttributes.Override;// | MemberAttributes.Final
         if (parametersName != null && parametersType != null && parametersName.Length == parametersType.Length)
         {
             //添加参数
