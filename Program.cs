@@ -32,11 +32,15 @@ public static class Program
     public static string ParseString(this Google.ProtocolBuffers.ByteString str)
     {
         string ret = str.ToString(Encoding.ASCII);
-        ret = ret.Replace("\n", "");
-        ret = ret.Replace("\t", "");
-        ret = ret.Replace("\a", "");
-        ret = ret.Replace("\r", "");
-        return ret;
+        StringBuilder stringBuilder = new StringBuilder();
+        foreach(char ch in ret)
+        {
+            if (Char.IsLetterOrDigit(ch) || ch == '_')
+            {
+                stringBuilder.Append(ch);
+            }
+        }
+        return stringBuilder.ToString();
     }
 
     public static string ToCamel(this string sourcestr)
